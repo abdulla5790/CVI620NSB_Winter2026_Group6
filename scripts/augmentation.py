@@ -2,214 +2,80 @@ import cv2
 import numpy as np
 import random
 
-# ---------------------------------------------------------------------------
-# augmentation.py
-# ---------------------------------------------------------------------------
-# This module defines a set of image augmentation techniques that are applied
-# randomly during training to artificially increase the diversity of the
-# dataset. Augmentation helps the model generalise better to road conditions
-# it has never explicitly seen (different lighting, slight camera angles, etc.)
-# and reduces the risk of overfitting to the specific routes driven during
-# data collection.
-#
-# Each function either:
-#   - transforms only the image  (brightness, zoom, pan)
-#   - transforms the image AND adjusts the steering angle (flip, rotate)
-#     because those operations physically change the direction the car appears
-#     to be heading, so the label must be updated to stay consistent.
-# ---------------------------------------------------------------------------
+# This script defines various image augmentation techniques to enhance the diversity of the training dataset 
 
-
+# Flip the image horizontally and invert the steering angle
 def flip(img, steering):
-    """
-    Mirror the image horizontally and negate the steering angle.
+    #Warp affine is slower than flip, so we use flip for horizontal flipping
+    #0 = Flip vertically (upside down)
+    #1 = Flip horizontally (left-right mirror)
+    #-1 = Flip both axes (180° rotation)
 
-    A left-turn image becomes a right-turn image after flipping, so the
-    steering angle must be multiplied by -1 to keep the label correct.
-    This effectively doubles the usable dataset by exploiting the
-    left/right symmetry of the road.
-
-    cv2.flip codes:
-        0  -> flip vertically  (upside-down)
-        1  -> flip horizontally (left-right mirror)  <- used here
-       -1  -> flip both axes   (180 degree rotation)
-
-    Example:
-        steering = -0.3  (turning left)
-        after flip -> image mirrors left/right, new steering = +0.3 (turning right)
-    """
+    #If steering angle is -0.3, it becomes 0.3 after flipping
     return cv2.flip(img, 1), -steering
 
-
+# Adjust the brightness of the image by converting to HSV and scaling the V channel
 def brightness(img):
-    """
-    Randomly adjust the brightness of the image by scaling the V (Value)
-    channel in HSV colour space.
-
-    Why HSV?
-        In HSV, brightness is isolated in a single channel (V), so we can
-        scale it independently without affecting hue or saturation.
-        Doing the same in RGB would require scaling all three channels and
-        risks colour shift artefacts.
-
-    The scaling ratio is sampled from the range [0.8, 1.2]:
-        ratio = 1.0 + 0.4 * (random() - 0.5)
-        random() in [0,1)  ->  (random()-0.5) in [-0.5, 0.5)
-        0.4 * that         in [-0.2, 0.2)
-        1.0 + that         in [ 0.8, 1.2)
-
-    np.clip ensures pixel values stay within the valid [0, 255] range after
-    scaling — without it we could get overflow artefacts.
-
-    Steering angle is NOT changed because brightness does not affect the
-    geometry of the road ahead.
-    """
-    # Convert to float first so that the multiplication does not overflow uint8
+    #Convert the image from RGB to HSV color space, where we can easily manipulate the brightness (V channel)
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV).astype(float)
+    ratio = 1.0 + 0.4 * (random.random() - 0.5) # Randomly adjust brightness by ±20%
+    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * ratio, 0, 255) # Apply the brightness adjustment to the V channel and clip to valid range
+    return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB) # Convert back to RGB after adjusting brightness
 
-    ratio = 1.0 + 0.4 * (random.random() - 0.5)  # Random scale in [0.8, 1.2)
-
-    # Apply scaling only to the V channel (index 2) and clip to [0, 255]
-    hsv[:, :, 2] = np.clip(hsv[:, :, 2] * ratio, 0, 255)
-
-    # Convert back to uint8 then back to RGB for the rest of the pipeline
-    return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
-
-
+# Zoom the image by scaling it and then cropping back to original size
 def zoom(img):
-    """
-    Zoom into the image by a random scale factor between 1.10 and 1.20
-    (i.e. 10-20% zoom), keeping the output the same size as the input.
-
-    How it works:
-        cv2.getRotationMatrix2D builds a 2x3 affine matrix that combines
-        rotation and scaling around a specified centre point. By setting
-        angle=0 we get pure scaling (no rotation). cv2.warpAffine then
-        applies the matrix, effectively cropping the outer edges to simulate
-        a camera zoom.
-
-    Steering angle is NOT changed because zooming does not alter the
-    horizontal direction the car is heading.
-    """
-    scale = 1 + random.uniform(0.1, 0.2)   # Random zoom factor in [1.10, 1.20]
-    h, w = img.shape[:2]
-    center = (w / 2, h / 2)
-
-    # Build a pure-scale affine matrix (angle=0, scale=scale) centred on image
-    zoom_matrix = cv2.getRotationMatrix2D(center, 0, scale)
-
-    # Apply the transformation; pixels shifted outside boundary are filled black
+    scale = 1 + random.uniform(0.1, 0.2) # Randomly zoom in by 10-20%
+    h, w = img.shape[:2] # Get the height and width of the image
+    center = (w / 2, h / 2) # Calculate the center of the image
+    #Zoom matrix = cv2.getRotationMatrix2D(center, angle, scale)
+    zoom_matrix = cv2.getRotationMatrix2D(center, 0, scale) # Create a scaling transformation matrix centered on the image
+    #return zoomed image
     return cv2.warpAffine(img, zoom_matrix, (w, h))
 
-
+# Pan the image by translating it in both x and y directions
 def pan(img):
-    """
-    Randomly translate (pan) the image in both the horizontal and vertical
-    directions by up to +/-10% of the image dimensions.
+    h, w = img.shape[:2] # Get the height and width of the image
+    #Gets image width and shifts the image horizontally between -10% and +10% 
+    tx = random.uniform(-0.1, 0.1) * img.shape[1]
+    #Gets image height and shifts the image vertically between -10% and +10% 
+    ty = random.uniform(-0.1, 0.1) * img.shape[0]
+    #Create a translation matrix for panning the image by tx and ty
+    # This creates a 2x3 affine transformation matrix
+    # [[1, 0, tx], - no scaling in x direction, shift horizontally by tx pixels
+    #  [0, 1, ty]] - no scaling in y direction, shift vertically by ty pixels
+    translation_matrix = np.float32([[1, 0, tx], [0, 1, ty]])
+    #return the panned image by applying the translation matrix to the original image 
 
-    The affine translation matrix is:
-        [[1, 0, tx],
-         [0, 1, ty]]
-    where tx and ty are the pixel offsets in x and y respectively.
-    The 1s on the diagonal mean no scaling or rotation — only a shift.
+    return cv2.warpAffine(img, translation_matrix, (w, h))
 
-    Simulates the car being positioned slightly off-centre in the lane,
-    teaching the model to correct its steering from a variety of lateral
-    starting positions.
-
-    Steering angle is NOT adjusted here. A more sophisticated implementation
-    could add a small steering correction proportional to tx, but for this
-    project the augmentation variety alone is sufficient.
-    """
-    h, w = img.shape[:2]
-
-    # Horizontal shift: up to +/-10% of image width
-    tx = random.uniform(-0.1, 0.1) * w
-    # Vertical shift: up to +/-10% of image height
-    ty = random.uniform(-0.1, 0.1) * h
-
-    # 2x3 translation matrix — no rotation or scaling involved
-    transition_matrix = np.float32([[1, 0, tx],
-                                    [0, 1, ty]])
-
-    return cv2.warpAffine(img, transition_matrix, (w, h))
-
-
+# Rotate the image by a small angle and adjust the steering angle accordingly
 def rotate(img, steering):
-    """
-    Rotate the image by a small random angle (+/-5 degrees) and compensate
-    the steering angle accordingly.
-
-    Why adjust the steering angle?
-        Rotating the image changes the apparent orientation of the road in
-        the frame. If the road appears rotated to the right, the model would
-        otherwise think the car needs to steer further right than it actually
-        does. We correct by subtracting a fraction of the rotation angle from
-        the steering label.
-
-    Steering correction formula:
-        new_steering = original_steering + (-angle / 25.0)
-
-        The divisor 25.0 is an empirical scaling factor that converts degrees
-        of image rotation into the normalised steering unit [-1, 1].
-
-    Example:
-        original_steering =  0.3   (turning right 30%)
-        angle             =  5 degrees (image rotated clockwise)
-        correction        = -5/25  = -0.2
-        new_steering      =  0.3 - 0.2 = 0.1  (less right turn needed)
-
-    The correction ensures the steering label continues to describe what the
-    car should do relative to the actual road geometry, not the rotated image.
-    """
-    angle = random.uniform(-5, 5)   # Random rotation in degrees, range [-5, +5]
-    h, w = img.shape[:2]
-    center = (w / 2, h / 2)
-
-    # Affine matrix for rotation only (scale=1 means no zoom applied)
+    angle = random.uniform(-5, 5) # Randomly rotate the image by ±5 degrees
+    h, w = img.shape[:2] # Get the height and width of the image
+    center = (w / 2, h / 2) # Calculate the center of the image
+    #Rotation matrix = cv2.getRotationMatrix2D(center, angle, scale)
     rotation_matrix = cv2.getRotationMatrix2D(center, angle, 1)
+    #Return the rotated image and adjust the steering angle based on the rotation 
+    #Rotating the image means car is turning, so we adjust the steering angle by a factor of the rotation angle
+    # Example: Rotate right, original steering right
+    # steering = 0.3  # Already turning right 30%
+    # angle = 5       # Image rotated right 5°
+    # new_steering = 0.3 + (-5/25) = 0.3 - 0.2 = 0.1  # Need less right turn
+    #We basically want the steering to match the road and not the car's orientation in the image. 
+    return cv2.warpAffine(img, rotation_matrix, (w, h)), steering + (-angle / 25.0)
 
-    rotated_img = cv2.warpAffine(img, rotation_matrix, (w, h))
-    adjusted_steering = steering + (-angle / 25.0)
-
-    return rotated_img, adjusted_steering
-
-
+# Apply a random combination of augmentations to the image and adjust the steering angle as needed
 def augment(img, steering):
-    """
-    Apply a random subset of augmentations to a single training image.
-
-    Each augmentation is applied independently with a 50% probability, so
-    any combination — including none or all five — can occur in one call.
-    This stochastic approach means the model sees a different variation of
-    each image in every epoch, significantly increasing effective dataset
-    size without collecting more real driving data.
-
-    Augmentation is intentionally applied ONLY during training (controlled
-    by the caller in batch_generator.py). Validation images are kept
-    unmodified so that validation loss reflects true real-world performance.
-
-    Args:
-        img      : RGB numpy array from the simulator camera
-        steering : float, the original steering angle label for this image
-
-    Returns:
-        img      : augmented image (numpy array, same shape as input)
-        steering : potentially adjusted steering angle (float)
-    """
+    #Randomly apply each augmentation with a 50% chance 
+    #Could be any combination of the augmentations, including none or all of them
     if random.random() < 0.5:
-        img, steering = flip(img, steering)       # Mirror left/right
-
+        img, steering = flip(img, steering)
     if random.random() < 0.5:
-        img = brightness(img)                     # Random brightness shift
-
+        img = brightness(img)
     if random.random() < 0.5:
-        img = zoom(img)                           # Random 10-20% zoom in
-
+        img = zoom(img)
     if random.random() < 0.5:
-        img = pan(img)                            # Random +/-10% translation
-
+        img = pan(img)
     if random.random() < 0.5:
-        img, steering = rotate(img, steering)     # Random +/-5 degree rotation
-
+        img, steering = rotate(img, steering)
     return img, steering
