@@ -24,8 +24,8 @@ def plot_histogram(df, title='Steering Angle Distribution', save_path=None):
         plt.savefig(save_path)
     plt.show()
 
-# Balance the dataset by limiting the number of samples in each steering angle bin
-def balance_data(df, max_samples=1000):
+# Balance the dataset by limiting the number of samples in each steering angle bin, and visualize the distribution after balancing
+def balance_data(df, max_samples=1000, display=True):
     num_bins = 25
     # Create bins for steering angles and count samples in each bin (like a batch)
     _, bins = np.histogram(df['steering'], num_bins)
@@ -40,7 +40,11 @@ def balance_data(df, max_samples=1000):
                                  len(bin_indices) - max_samples,
                                  replace=False)
             )
-    return df.drop(remove_indices).reset_index(drop=True)
+        df_balanced = df.drop(remove_indices).reset_index(drop=True)
+
+        if display:
+            plot_histogram(df_balanced, title='Balanced Steering Angle Distribution')
+    return df_balanced
 
 # Main execution: Load data, visualize original distribution, balance data, and visualize balanced distribution
 if __name__ == '__main__':
