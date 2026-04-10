@@ -40,10 +40,11 @@ def balance_data(df, max_samples=1000, display=True):
                                  len(bin_indices) - max_samples,
                                  replace=False)
             )
-        df_balanced = df.drop(remove_indices).reset_index(drop=True)
+        
+    df_balanced = df.drop(remove_indices).reset_index(drop=True)
 
-        if display:
-            plot_histogram(df_balanced, title='Balanced Steering Angle Distribution')
+    if display:
+        plot_histogram(df_balanced, title='Balanced Steering Angle Distribution')
     return df_balanced
 
 # Main execution: Load data, visualize original distribution, balance data, and visualize balanced distribution
