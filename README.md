@@ -218,6 +218,9 @@ The car will begin steering autonomously. Terminal 1 will stream live `throttle 
 
 ---
 
+# Video Submission:
+[text](https://youtu.be/_lU_HQS-bes)
+
 ## References
 
 - Bojarski, M. et al. (2016). *End to End Learning for Self-Driving Cars.* NVIDIA. [arXiv:1604.07316](https://arxiv.org/abs/1604.07316)
