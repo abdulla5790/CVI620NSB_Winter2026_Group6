@@ -119,7 +119,8 @@ exact task: mapping raw camera pixels to steering angles without any intermediat
 representation. It has been validated on real vehicles and is well-suited to the
 complexity of the Udacity simulator's single-track environment.
 
-model_img.png
+![model_img](https://github.com/user-attachments/assets/70bcb852-13d9-46f8-8eb8-8f21d2fdc8b2)
+
 
 The network is defined in `model.py` and consists of:
 
