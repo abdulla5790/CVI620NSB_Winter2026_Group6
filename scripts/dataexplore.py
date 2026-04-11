@@ -12,7 +12,7 @@ def load_data(csv_path='./data/driving_log.csv'):
 
 # Visualize the distribution of steering angles before and after balancing
 def plot_histogram(df, title='Steering Angle Distribution', save_path=None):
-    plt.figure(figsize=(10, 4))
+    plt.figure(figsize=(6, 4))
     plt.hist(df['steering'], bins=25, color='blue')
     plt.axhline(y=1000, color='red', linestyle='--', label='Max threshold')
     plt.title(title)
@@ -25,24 +25,28 @@ def plot_histogram(df, title='Steering Angle Distribution', save_path=None):
     plt.show()
 
 # Balance the dataset by limiting the number of samples in each steering angle bin, and visualize the distribution after balancing
-def balance_data(df, max_samples=1000, display=True):
+def balance_data(df, max_samples=400, display=True):
     num_bins = 25
     # Create bins for steering angles and count samples in each bin (like a batch)
     _, bins = np.histogram(df['steering'], num_bins)
-    remove_indices = []
+    remove_indices = [] # List to store indices of samples to remove for balancing
     # For each bin, randomly remove samples if the count exceeds max_samples
     for i in range(num_bins):
+        # Create a boolean mask for the current bin, if steering angle is between bins[i] and bins[i+1], mask is True
         mask = (df['steering'] >= bins[i]) & (df['steering'] < bins[i+1])
-        bin_indices = df[mask].index.tolist()
+        bin_indices = df[mask].index.tolist() # Get the indices of samples in the current bin
+        # If the number of samples in the bin exceeds max_samples, randomly select indices to remove
         if len(bin_indices) > max_samples:
             remove_indices.extend(
                 np.random.choice(bin_indices,
                                  len(bin_indices) - max_samples,
                                  replace=False)
             )
-        
+    
+    # Remove the selected indices from the DataFrame to create a balanced dataset
     df_balanced = df.drop(remove_indices).reset_index(drop=True)
-
+    
+    # Optionally display the histogram of the balanced dataset to verify the distribution
     if display:
         plot_histogram(df_balanced, title='Balanced Steering Angle Distribution')
     return df_balanced
@@ -54,4 +58,3 @@ if __name__ == '__main__':
     plot_histogram(df, 'Original Distribution', './docs/histogram_original.png')
     df = balance_data(df)
     print(f'Total samples after balancing:  {len(df)}')
-    plot_histogram(df, 'Balanced Distribution', './docs/histogram_balanced.png')
