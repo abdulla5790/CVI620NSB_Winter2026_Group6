@@ -203,7 +203,7 @@ abruptly.
 ---
 
 # Video Submission:
-[text](https://youtu.be/_lU_HQS-bes)
+https://youtu.be/_lU_HQS-bes
 
 ## References
 
