@@ -219,7 +219,7 @@ The car will begin steering autonomously. Terminal 1 will stream live `throttle 
 ---
 
 # Video Submission:
-[text](https://youtu.be/_lU_HQS-bes)
+https://youtu.be/_lU_HQS-bes
 
 ## References
 
