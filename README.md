@@ -179,20 +179,13 @@ The car will begin steering autonomously. Terminal 1 will stream live `throttle 
 
 ## Approach
 
-### Data & Preprocessing (Member 1)
-*Add a brief paragraph describing your data collection strategy, why you drove laps in both directions, how the balancing threshold was chosen, and any notable preprocessing decisions (e.g., YUV over RGB, crop boundaries).*
-
-### Model & Training (Member 2)
-*Add a brief paragraph describing why the NVIDIA architecture was chosen, any modifications made (e.g., dropout placement), how you determined the number of epochs, and what the final validation loss was.*
+please see: docs/approach.md
 
 ---
 
 ## Challenges
 
-*Both members: add your biggest challenge and how you resolved it.*
-
-- **Member 1:** ...
-- **Member 2:** ...
+please see: docs/approach.md
 
 ---
 
